@@ -166,6 +166,7 @@ See `apps/API_DESCRIPTION.MD` for full endpoint and payload documentation. Core 
 This project was developed in collaboration with an exceptional team, consisting of:
 
 * [Michael Helcig](https://github.com/helcig)
+* [Florian Trimmel](https://github.com/dazwala)
 
 **Built with ❤️ in 🇦🇹 at TU Wien.**
 
