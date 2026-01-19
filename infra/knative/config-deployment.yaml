@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-deployment
+  namespace: knative-serving
+data:
+  ingress-class: "kourier.ingress.networking.knative.dev"
+  queue-sidecar-image: gcr.io/knative-releases/knative.dev/serving/cmd/queue:latest # REQUIRED – this must be set!
+  registriesSkippingTagResolving: "ko.local,limelapse.com,localhost:5000,127.0.0.1:5000"

@@ -1,0 +1,59 @@
+# ================ Global scope ====================
+ARG FUNCTION_NAME
+
+
+# ================ gradle ====================
+FROM eclipse-temurin:21-jdk AS gradle
+WORKDIR /build
+USER root
+COPY ./gradle ./gradle
+COPY settings.gradle.kts .
+COPY gradlew .
+COPY gradle.properties .
+RUN ./gradlew wrapper --no-daemon
+
+
+# ================ builder ====================
+FROM gradle AS build
+COPY shared ./shared
+COPY function-blur-image ./function-blur-image
+COPY function-create-project ./function-create-project
+COPY function-delete-project ./function-delete-project
+COPY function-delete-video ./function-delete-video
+COPY function-file-access ./function-file-access
+COPY function-file-upload ./function-file-upload
+COPY function-finish-video ./function-finish-video
+COPY function-generate-video ./function-generate-video
+COPY function-get-telemetry ./function-get-telemetry
+COPY function-generate-preview ./function-generate-preview
+COPY function-get-video ./function-get-video
+COPY function-ingest-telemetry ./function-ingest-telemetry
+COPY function-list-projects ./function-list-projects
+COPY function-list-videos ./function-list-videos
+COPY function-minio-event ./function-minio-event
+COPY function-process-video ./function-process-video
+COPY function-update-project ./function-update-project
+COPY function-resize-image ./function-resize-image
+COPY function-generate-embedding ./function-generate-embedding
+COPY function-search-image ./function-search-image
+COPY function-search-heatmap ./function-search-heatmap
+RUN ./gradlew quarkusBuild -DskipTests --no-daemon
+
+# ================ runtime ====================
+FROM eclipse-temurin:21-jre-alpine AS runtime
+WORKDIR /app
+ENTRYPOINT ["java", "-jar", "quarkus-run.jar", "-Dquarkus.http.host=0.0.0.0"]
+
+
+# ================ local ====================
+FROM runtime AS from-local
+ARG FUNCTION_NAME
+COPY config/application.properties ./config/application.properties
+COPY ./$FUNCTION_NAME/build/quarkus-app/ ./
+
+
+# ================ docker-built ====================
+FROM runtime AS from-builder
+ARG FUNCTION_NAME
+COPY config/application.properties ./config/application.properties
+COPY --from=build ./build/$FUNCTION_NAME/build/quarkus-app/ ./

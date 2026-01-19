@@ -1,0 +1,217 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-realm
+data:
+  limelapse-realm.json: |
+    {
+      "realm": "limelapse",
+      "enabled": true,
+      "clients": [
+        {
+          "clientId": "test-client",
+          "enabled": true,
+          "publicClient": true,
+          "directAccessGrantsEnabled": true,
+          "protocol": "openid-connect",
+          "redirectUris": [
+            "*",
+            "limelapse://projects"
+          ],
+          "webOrigins": [
+            "*"
+          ],
+          "rootUrl": "${authBaseUrl}",
+          "baseUrl": "/realms/limelapse/account/",
+          "protocolMappers": [
+            {
+              "name": "minio-policy-mapper",
+              "protocol": "openid-connect",
+              "protocolMapper": "oidc-usermodel-attribute-mapper",
+              "consentRequired": false,
+              "config": {
+                "aggregate.attrs": "true",
+                "introspection.token.claim": "true",
+                "multivalued": "true",
+                "userinfo.token.claim": "true",
+                "user.attribute": "policy",
+                "id.token.claim": "true",
+                "lightweight.claim": "false",
+                "access.token.claim": "true",
+                "claim.name": "policy",
+                "jsonType.label": "String"
+              }
+            }
+          ]
+        }
+      ],
+      "users": [
+        {
+          "username": "alice",
+          "enabled": true,
+          "email": "alice@keycloak.org",
+          "firstName": "Alice",
+          "lastName": "Liddel",
+          "credentials": [
+            {
+              "type": "password",
+              "value": "<<anonymized>>"
+            }
+          ],
+          "realmRoles": [
+            "user",
+            "offline_access"
+          ],
+          "clientRoles": {
+            "account": [
+              "manage-account"
+            ]
+          },
+          "groups": [
+            "minio-sts-group"
+          ]
+        },
+        {
+          "username": "admin2",
+          "enabled": true,
+          "email": "test@admin.org",
+          "firstName": "Admin",
+          "lastName": "Test",
+          "credentials": [
+            {
+              "type": "password",
+              "value": "<<anonymized>>"
+            }
+          ],
+          "realmRoles": [
+            "user",
+            "admin"
+          ],
+          "clientRoles": {
+            "realm-management": [
+              "realm-admin"
+            ],
+            "account": [
+              "manage-account"
+            ]
+          },
+          "groups": [
+            "minio-sts-group"
+          ]
+        }
+      ],
+      "roles": {
+        "realm": [
+          {
+            "name": "user",
+            "description": "User privileges"
+          },
+          {
+            "name": "admin",
+            "description": "Administrator privileges"
+          }
+        ]
+      },
+      "groups": [
+        {
+          "name": "minio-sts-group",
+          "path": "/minio-sts-group",
+          "attributes": {
+            "policy": [
+              "user-access"
+            ]
+          }
+        }
+      ],
+      "defaultGroups": [
+        "/minio-sts-group"
+      ]
+    }
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: keycloak-secret
+type: Opaque
+stringData:
+  KEYCLOAK_ADMIN: <<anonymized>>
+  KEYCLOAK_ADMIN_PASSWORD: <<anonymized>>
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: keycloak-h2-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+spec:
+  selector:
+    app: keycloak
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.2.0
+          args: [ "start-dev", "--import-realm", "--proxy-headers=xforwarded" ]
+          env:
+            - name: KEYCLOAK_ADMIN
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-secret
+                  key: KEYCLOAK_ADMIN
+            - name: KEYCLOAK_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-secret
+                  key: KEYCLOAK_ADMIN_PASSWORD
+            - name: KC_TRACING_ENABLED
+              value: "true"
+            - name: KC_TRACING_SERVICE_NAME
+              value: "keycloak"
+            - name: KC_TRACING_ENDPOINT
+              value: "http://jaeger-inmemory-instance-collector.default.svc:4317"
+            - name: KC_TRACING_PROTOCOL
+              value: "grpc"
+            - name: KC_TRACING_SAMPLER_RATIO
+              value: "1.0"
+            - name: KC_HTTP_ENABLED
+              value: "true"
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: h2data
+              mountPath: /opt/keycloak/data
+            - name: realm
+              mountPath: /opt/keycloak/data/import
+              readOnly: true
+      volumes:
+        - name: h2data
+          persistentVolumeClaim:
+            claimName: keycloak-h2-pvc
+        - name: realm
+          configMap:
+            name: keycloak-realm

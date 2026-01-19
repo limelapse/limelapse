@@ -1,0 +1,67 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: function-generate-embedding
+  namespace: default
+spec:
+  template:
+    spec:
+      containers:
+        - image: limelapse.com/function-generate-embedding:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          env:
+            - name: MINIO_IMAGES_BUCKET
+              value: "images"
+            - name: QUARKUS_MINIO_HOST
+              value: "minio"
+            - name: QUARKUS_MINIO_PORT
+              value: "9000"
+            - name: QUARKUS_MINIO_SECURE
+              value: "false"
+            - name: QUARKUS_MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: ACCESS_KEY
+            - name: QUARKUS_MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: SECRET_KEY
+            - name: QUARKUS_DATASOURCE_DB_KIND
+              value: "postgresql"
+            - name: QUARKUS_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_USER
+            - name: QUARKUS_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB # redundancy for next env var injection
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_DB
+            - name: QUARKUS_DATASOURCE_JDBC_URL
+              value: "jdbc:postgresql://postgres:5432/$(POSTGRES_DB)"
+---
+apiVersion: eventing.knative.dev/v1
+kind: Trigger
+metadata:
+  name: generate-embedding-trigger
+  namespace: default
+spec:
+  broker: default
+  filters:
+    - exact:
+        type: MinioUpload
+  subscriber:
+    ref:
+      apiVersion: serving.knative.dev/v1
+      kind: Service
+      name: function-generate-embedding

@@ -1,0 +1,7 @@
+**/build/
+!**/build/quarkus-app
+**/.gradle/
+.gradle/
+libs/
+.idea/
+.kotlin/

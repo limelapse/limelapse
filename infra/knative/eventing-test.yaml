@@ -1,0 +1,59 @@
+# this sets up a test environment for the kafka eventing
+# you have to add broker.limelapse.com to the hosts file and then you can send a cloudevent
+# $brokerUrl = "http://broker.limelapse.com/default/default"
+# curl -v $brokerUrl `
+#  -X POST `
+#  -H "Ce-Id: 1234" `
+#  -H "Ce-Specversion: 1.0" `
+#  -H "Ce-Type: dev.knative.test" `
+#  -H "Ce-Source: powershell" `
+#  -H "Content-Type: application/json" `
+#  -d '{ "message": "Hello from Windows through Ingress!" }'
+# The result should pop up in the event-display, check via
+# kubectl logs -l serving.knative.dev/service=event-display -n default
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: event-display
+  namespace: default
+spec:
+  template:
+    spec:
+      containers:
+        - image: gcr.io/knative-releases/knative.dev/eventing/cmd/event_display
+---
+apiVersion: eventing.knative.dev/v1
+kind: Trigger
+metadata:
+  name: test-trigger
+  namespace: default
+spec:
+  broker: default
+  subscriber:
+    ref:
+      apiVersion: serving.knative.dev/v1
+      kind: Service
+      name: event-display
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: main-ingress
+  namespace: knative-eventing
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/preserve-host: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: broker.limelapse.com
+    http:
+      paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: kafka-broker-ingress
+              port:
+                number: 80
+---

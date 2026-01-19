@@ -1,0 +1,51 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: function-finish-video
+  namespace: default
+spec:
+  template:
+    spec:
+      containers:
+        - image: limelapse.com/function-finish-video:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          env:
+            - name: MINIO_VIDEOS_BUCKET
+              value: "videos"
+            - name: QUARKUS_DATASOURCE_DB_KIND
+              value: "postgresql"
+            - name: QUARKUS_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_USER
+            - name: QUARKUS_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB # redundancy for next env var injection
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_DB
+            - name: QUARKUS_DATASOURCE_JDBC_URL
+              value: "jdbc:postgresql://postgres:5432/$(POSTGRES_DB)"
+---
+apiVersion: eventing.knative.dev/v1
+kind: Trigger
+metadata:
+  name: finish-video-trigger
+  namespace: default
+spec:
+  broker: default
+  filters:
+    - exact:
+        type: MinioUpload
+  subscriber:
+    ref:
+      apiVersion: serving.knative.dev/v1
+      kind: Service
+      name: function-finish-video

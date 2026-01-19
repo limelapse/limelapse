@@ -1,0 +1,3 @@
+services:
+    - name: app # this is the name the service is reachable by
+      port: 80

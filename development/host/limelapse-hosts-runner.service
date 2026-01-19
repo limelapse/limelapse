@@ -1,0 +1,15 @@
+[Unit]
+Description=🍋‍ LimeLapse Hosts
+After=network.target
+Requires=network.target
+
+[Service]
+Type=simple
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=HOME=/root
+ExecStart=/bin/bash -c "sleep 10 && python3 /root/25ss-ase-pr-qse-02/development/run-minikube.py hosts"
+WorkingDirectory=/root/25ss-ase-pr-qse-02
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,221 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: keycloak-ingress
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/preserve-host: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    cert-manager.io/cluster-issuer: local-ca-issuer
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header X-Forwarded-For $remote_addr;
+      proxy_set_header X-Forwarded-Proto $pass_access_scheme;
+      proxy_set_header X-Forwarded-Port $pass_port;
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - sso.limelapse.com
+      secretName: sso-tls
+  rules:
+    - host: sso.limelapse.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak
+                port:
+                  number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: minioadmin-ingress
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/preserve-host: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    cert-manager.io/cluster-issuer: local-ca-issuer
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header X-Forwarded-For $remote_addr;
+      proxy_set_header X-Forwarded-Proto $pass_access_scheme;
+      proxy_set_header X-Forwarded-Port $pass_port;
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - minioadmin.limelapse.com
+      secretName: minioadmin-tls
+  rules:
+    - host: minioadmin.limelapse.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: minio
+                port:
+                  number: 9090
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: jaeger-ingress
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/preserve-host: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    cert-manager.io/cluster-issuer: local-ca-issuer
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header X-Forwarded-For $remote_addr;
+      proxy_set_header X-Forwarded-Proto $pass_access_scheme;
+      proxy_set_header X-Forwarded-Port $pass_port;
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - jaeger.limelapse.com
+      secretName: jaeger-tls
+  rules:
+    - host: jaeger.limelapse.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: jaeger-inmemory-instance-collector
+                port:
+                  number: 16686
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ingress-nginx-controller
+  namespace: ingress-nginx
+data:
+  enable-opentelemetry: "true"
+  otel-service-name: "nginx-ingress"
+  otlp-collector-host: "jaeger-inmemory-instance-collector.default.svc"
+  otel-collector-port: "4317"
+  enable-cors: "true"
+  cors-allow-origin: "*"
+  cors-allow-methods: "PUT, GET, POST, OPTIONS"
+  cors-allow-headers: "Content-Type,Authorization"
+  allow-snippet-annotations: "true"
+  location-snippet: |
+    more_set_headers 'Access-Control-Allow-Origin: *';      
+    more_set_headers 'Access-Control-Allow-Methods: GET, POST, PUT, OPTIONS';
+    more_set_headers 'Access-Control-Allow-Headers: Content-Type, Authorization';      
+    more_set_headers 'Access-Control-Max-Age: 3600';
+    if ($request_method = 'OPTIONS') {        
+      return 204;
+    }
+---
+# Ingress to access minio with presigned urls/tokens
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: minio-ingress
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    cert-manager.io/cluster-issuer: local-ca-issuer
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/client-max-body-size: "0"
+    nginx.ingress.kubernetes.io/ignore-invalid-headers: "off"
+    #nginx.ingress.kubernetes.io/upstream-vhost: "minio:9000"
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/proxy-set-headers: |
+      X-Real-IP: $remote_addr
+      X-Forwarded-For: $proxy_add_x_forwarded_for
+      X-Forwarded-Proto: $scheme
+      Connection: ""
+      chunked_transfer_encoding: "off"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, OPTIONS"
+    #nginx.ingress.kubernetes.io/cors-allow-origin: "*" #  Use "*" VERY carefully.
+    nginx.ingress.kubernetes.io/cors-allow-headers: "Content-Type, Content-Length, Content-MD5, Date, Expect, Host, Origin, Authorization, X-Requested-With, Keep-Alive, If-Modified-Since, x-amz-content-sha256, x-amz-date, x-amz-security-token, x-amz-user-agent, amz-sdk-request, amz-sdk-invocation-id, x-amz-checksum-mode"
+    # Optionally, specify max age for preflight requests
+    nginx.ingress.kubernetes.io/cors-max-age: "3600"
+    # Optionally, allow credentials (e.g., cookies).  Requires specific origins, not "*"
+    # nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - minio.limelapse.com
+      secretName: sso-minio
+  rules:
+    - host: minio.limelapse.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: minio
+                port:
+                  number: 9000
+---
+---
+# Ingress to access minio with presigned urls/tokens
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: minio-file-ingress
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    cert-manager.io/cluster-issuer: local-ca-issuer
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/client-max-body-size: "0"
+    nginx.ingress.kubernetes.io/ignore-invalid-headers: "off"
+    nginx.ingress.kubernetes.io/upstream-vhost: "minio:9000"
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/proxy-set-headers: |
+      X-Real-IP: $remote_addr
+      X-Forwarded-For: $proxy_add_x_forwarded_for
+      X-Forwarded-Proto: $scheme
+      Connection: ""
+      Host: "minio:9000"
+      chunked_transfer_encoding: "off"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, OPTIONS"
+    #nginx.ingress.kubernetes.io/cors-allow-origin: "*" #  Use "*" VERY carefully.
+    nginx.ingress.kubernetes.io/cors-allow-headers: "Content-Type, Content-Length, Content-MD5, Date, Expect, Host, Origin, Authorization, X-Requested-With, Keep-Alive, If-Modified-Since, x-amz-content-sha256, x-amz-date, x-amz-security-token, x-amz-user-agent, amz-sdk-request, amz-sdk-invocation-id, x-amz-checksum-mode"
+    # Optionally, specify max age for preflight requests
+    nginx.ingress.kubernetes.io/cors-max-age: "3600"
+    # Optionally, allow credentials (e.g., cookies).  Requires specific origins, not "*"
+    # nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - download.limelapse.com
+      secretName: sso-minio-download
+  rules:
+    - host: download.limelapse.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: minio
+                port:
+                  number: 9000

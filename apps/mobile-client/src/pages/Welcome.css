@@ -1,0 +1,91 @@
+/* Welcome.css */
+
+.welcome-page {
+    --background: #f8f8f8;
+    font-family:
+        -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+        sans-serif;
+}
+
+.logo-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 10%;
+    margin-bottom: 8%;
+}
+
+.app-logo {
+    width: 80px;
+    height: 80px;
+    border-radius: 16px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.app-name {
+    margin-top: 16px;
+    margin-bottom: 4px;
+    font-size: 28px;
+    font-weight: 700;
+    color: #333;
+}
+
+.app-tagline {
+    margin-top: 0;
+    font-size: 16px;
+    font-weight: 400;
+}
+
+.auth-card {
+    margin: 0 12px;
+    border-radius: 16px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+ion-card-title {
+    font-size: 24px;
+    font-weight: 600;
+    padding-bottom: 8px;
+}
+
+.custom-input {
+    margin-bottom: 16px;
+    --border-radius: 10px;
+    --padding-start: 12px;
+    --highlight-color: #73d016; /* Lime green for the app theme */
+}
+
+.forgot-password {
+    text-align: right;
+    margin-bottom: 20px;
+    font-size: 14px;
+}
+
+.forgot-link {
+    cursor: pointer;
+}
+
+.login-button {
+    margin-top: 8px;
+    --background: #73d016; /* Lime green */
+    --background-activated: #5cbf1e;
+    --background-hover: #5cbf1e;
+    --border-radius: 12px;
+    --box-shadow: 0 4px 12px rgba(115, 208, 22, 0.4);
+    height: 48px;
+    font-weight: 500;
+    font-size: 16px;
+}
+
+.signup-prompt {
+    margin-top: 8px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.signup-prompt ion-button {
+    --color: #73d016;
+    font-weight: 500;
+    margin-left: 4px;
+}

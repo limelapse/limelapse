@@ -1,0 +1,16 @@
+services:
+  - name: ml-embedding-service
+    port: 5000
+    build_args:
+      SERVICE_TYPE: embedding
+      WORKERS: 1
+    env_vars:
+      PORT: 5000
+      
+  - name: ml-blurring-service
+    port: 5000
+    build_args:
+      SERVICE_TYPE: blurring
+      WORKERS: 1
+    env_vars:
+      PORT: 5000

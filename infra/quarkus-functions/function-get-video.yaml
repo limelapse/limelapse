@@ -1,0 +1,89 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: function-get-video
+  namespace: default
+spec:
+  template:
+    spec:
+      containers:
+        - image: limelapse.com/function-get-video:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          env:
+            - name: MINIO_VIDEOS_BUCKET
+              value: "videos"
+            - name: QUARKUS_MINIO_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: minio-config
+                  key: MINIO_HOST
+            - name: QUARKUS_MINIO_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: minio-config
+                  key: MINIO_PORT
+            - name: QUARKUS_MINIO_SECURE
+              value: "false"
+            - name: QUARKUS_MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: ACCESS_KEY
+            - name: QUARKUS_MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: SECRET_KEY
+            - name: QUARKUS_DATASOURCE_DB_KIND
+              value: "postgresql"
+            - name: QUARKUS_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_USER
+            - name: QUARKUS_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB # redundancy for next env var injection
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_DB
+            - name: QUARKUS_DATASOURCE_JDBC_URL
+              value: "jdbc:postgresql://postgres:5432/$(POSTGRES_DB)"
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: function-get-video-ingress
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/preserve-host: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    cert-manager.io/cluster-issuer: local-ca-issuer
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header X-Forwarded-For $remote_addr;
+      proxy_set_header X-Forwarded-Proto $pass_access_scheme;
+      proxy_set_header X-Forwarded-Port $pass_port;
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - function-get-video.limelapse.com
+      secretName: function-get-video-project-tls
+  rules:
+    - host: function-get-video.limelapse.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: knative-bridge
+                port:
+                  number: 80

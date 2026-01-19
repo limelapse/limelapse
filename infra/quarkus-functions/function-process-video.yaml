@@ -1,0 +1,61 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: function-process-video
+  namespace: default
+spec:
+  template:
+    spec:
+      containers:
+        - image: limelapse.com/function-process-video:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          env:
+            - name: MINIO_IMAGES_BUCKET
+              value: "images"
+            - name: MINIO_VIDEOS_BUCKET
+              value: "videos"
+            - name: QUARKUS_REST_CLIENT_TIMELAPSEEXPORT_URL # uses the name of the k8s timelapse export service
+              value: "http://timelapse-export:80"
+            - name: QUARKUS_DATASOURCE_DB_KIND
+              value: "postgresql"
+            - name: QUARKUS_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_USER
+            - name: QUARKUS_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB # redundancy for next env var injection
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: POSTGRES_DB
+            - name: QUARKUS_DATASOURCE_JDBC_URL
+              value: "jdbc:postgresql://postgres:5432/$(POSTGRES_DB)"
+---
+apiVersion: eventing.knative.dev/v1
+kind: Trigger
+metadata:
+  name: video-process-trigger
+  namespace: default
+  annotations:
+    kafka.eventing.knative.dev/delivery.order: ordered
+spec:
+  broker: default
+  filters:
+    - exact:
+        type: GenerateVideo
+  subscriber:
+    ref:
+      apiVersion: serving.knative.dev/v1
+      kind: Service
+      name: function-process-video
+  delivery:
+    backoffDelay: PT5S
+    backoffPolicy: linear
+    retry: 0

@@ -1,0 +1,29 @@
+.center-message {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 50vh;
+    text-align: center;
+    color: var(--ion-color-medium);
+    font-size: 1.1rem;
+}
+
+.project-info {
+    text-align: center;
+}
+
+.project-title {
+    font-size: 1.6rem;
+    font-weight: bold;
+}
+
+.project-dates {
+    font-size: 1rem;
+    color: var(--ion-color-medium);
+}
+
+.project-description {
+    font-size: 1rem;
+    color: var(--ion-color-dark);
+}

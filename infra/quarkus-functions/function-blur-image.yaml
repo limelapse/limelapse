@@ -1,0 +1,48 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: function-blur-image
+  namespace: default
+spec:
+  template:
+    spec:
+      containers:
+        - image: limelapse.com/function-blur-image:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          env:
+            - name: MINIO_IMAGES_BUCKET
+              value: "images"
+            - name: QUARKUS_MINIO_HOST
+              value: "minio"
+            - name: QUARKUS_MINIO_PORT
+              value: "9000"
+            - name: QUARKUS_MINIO_SECURE
+              value: "false"
+            - name: QUARKUS_MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: ACCESS_KEY
+            - name: QUARKUS_MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-secret
+                  key: SECRET_KEY
+---
+apiVersion: eventing.knative.dev/v1
+kind: Trigger
+metadata:
+  name: blur-image-trigger
+  namespace: default
+spec:
+  broker: default
+  filters:
+    - exact:
+        type: MinioUpload
+  subscriber:
+    ref:
+      apiVersion: serving.knative.dev/v1
+      kind: Service
+      name: function-blur-image

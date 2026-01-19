@@ -1,0 +1,137 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: minio-secret
+type: Opaque
+stringData:
+  ACCESS_KEY: <<anonymized>>
+  SECRET_KEY: <<anonymized>>
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: minio-config
+data:
+  MINIO_HOST: "minio"
+  MINIO_PORT: "9000"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: minio-policy
+data:
+  user-access-policy.json: |
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Action": [
+            "s3:ListBucket"],
+          "Effect": "Allow",
+          "Resource": [
+            "arn:aws:s3:::images"],
+          "Condition": {
+            "StringLike": {
+              "s3:prefix": [
+                "${jwt:sub}/*"]}}
+        },
+        {
+          "Action": [
+            "s3:GetObject",
+            "s3:PutObject"
+          ],
+          "Effect": "Allow",
+          "Resource": [
+            "arn:aws:s3:::images/${jwt:sub}/*"]
+        }
+      ]
+    }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+spec:
+  type: ClusterIP
+  selector:
+    app: minio
+  ports:
+    - name: api
+      port: 9000
+      targetPort: 9000
+    - name: console
+      port: 9090
+      targetPort: 9090
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      containers:
+        - name: minio
+          image: quay.io/minio/minio:latest
+          command:
+            - /bin/bash
+            - -c
+          args:
+            - |
+              mkdir -p /data/images;
+              mkdir -p /data/videos;
+              (sleep 10 && 
+              mc alias set minio http://minio:9000 <<anonymized>> <<anonymized>> &&
+              mc admin policy create minio user-access /tmp/policies/user-access-policy.json;
+              mc event add minio/images arn:minio:sqs::UPLOAD_PIPELINE:webhook --event put;
+              mc event add minio/videos arn:minio:sqs::UPLOAD_PIPELINE:webhook --event put) &
+              minio server /data --console-address :9090
+          env:
+            - name: MINIO_IDENTITY_OPENID_CLIENT_ID # client_id of keycloak client
+              value: "test-client"
+            #            - name: MINIO_IDENTITY_OPENID_CLIENT_SECRET
+            - name: MINIO_IDENTITY_OPENID_CONFIG_URL
+              value: "http://keycloak:8080/realms/limelapse/.well-known/openid-configuration"
+            - name: MINIO_IDENTITY_OPENID_DISPLAY_NAME
+              value: "KEYCLOAK"
+            - name: MINIO_IDENTITY_OPENID_SCOPES
+              value: "openid"
+            - name: MINIO_IDENTITY_OPENID_REDIRECT_URI_DYNAMIC
+              value: "on"
+            - name: MINIO_NOTIFY_WEBHOOK_ENABLE_UPLOAD_PIPELINE
+              value: "on"
+            - name: MINIO_NOTIFY_WEBHOOK_ENDPOINT_UPLOAD_PIPELINE
+              value: "http://function-minio-event.default.svc.cluster.local/on-upload-event"
+            - name: MINIO_DOMAIN
+              value: "minio.limelapse.com"
+          volumeMounts:
+            - name: miniodata
+              mountPath: /data
+            - name: policies
+              mountPath: /tmp/policies
+              readOnly: true
+      volumes:
+        - name: miniodata
+          persistentVolumeClaim:
+            claimName: minio-pvc
+        - name: policies
+          configMap:
+            name: minio-policy
