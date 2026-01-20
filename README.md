@@ -167,6 +167,7 @@ This project was developed in collaboration with an exceptional team, consisting
 
 * [Michael Helcig](https://github.com/helcig)
 * [Florian Trimmel](https://github.com/dazwala)
+* [Andreas Hofer](https://github.com/hoferand/)
 
 **Built with ❤️ in 🇦🇹 at TU Wien.**
 
